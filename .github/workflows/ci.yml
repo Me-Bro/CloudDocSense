@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+jobs:
+  lint-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install deps
+        run: cd apps/api && uv sync
+      - name: Ruff lint
+        run: cd apps/api && uv run ruff check .
+      - name: Mypy
+        run: cd apps/api && uv run mypy app/
+
+  lint-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - run: pnpm install
+      - run: cd apps/web && pnpm lint
+      - run: cd apps/web && pnpm type-check
+
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: docsense
+          POSTGRES_PASSWORD: docsense
+          POSTGRES_DB: docsense_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install deps
+        run: cd apps/api && uv sync
+      - name: Run migrations
+        run: cd apps/api && uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://docsense:docsense@localhost:5432/docsense_test
+          DATABASE_URL_SYNC: postgresql://docsense:docsense@localhost:5432/docsense_test
+      - name: Run tests
+        run: cd apps/api && uv run pytest tests/ -v
+        env:
+          DATABASE_URL: postgresql+asyncpg://docsense:docsense@localhost:5432/docsense_test
+          DATABASE_URL_SYNC: postgresql://docsense:docsense@localhost:5432/docsense_test
+          REDIS_URL: redis://localhost:6379/0
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build apps/api -f apps/api/Dockerfile
+      - name: Build Worker image
+        run: docker build apps/worker -f apps/worker/Dockerfile
+      - name: Build Web image
+        run: docker build apps/web -f apps/web/Dockerfile
