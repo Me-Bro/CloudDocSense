@@ -6,41 +6,61 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   citations?: Citation[]
+  grounded?: boolean
 }
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [conversationId, setConversationId] = useState<string | undefined>()
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!input.trim() || loading) return
+  function patchAssistant(id: string, patch: Partial<Message>) {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))
+  }
 
-    const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: input }
-    setMessages((prev) => [...prev, userMsg])
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const question = input.trim()
+    if (!question || loading) return
+
+    const assistantId = crypto.randomUUID()
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), role: 'user', content: question },
+      { id: assistantId, role: 'assistant', content: '' },
+    ])
     setInput('')
     setLoading(true)
 
-    try {
-      const data = await apiClient.query({ question: input, workspace_id: 'default' })
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: 'assistant', content: data.answer, citations: data.citations },
-      ])
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), role: 'assistant', content: 'Error contacting API.' },
-      ])
-    } finally {
-      setLoading(false)
-    }
+    apiClient.streamQuery(
+      { question, workspace_id: 'default', conversation_id: conversationId },
+      {
+        onMeta: (meta) => {
+          setConversationId(meta.conversation_id)
+          patchAssistant(assistantId, { citations: meta.citations, grounded: meta.grounded })
+        },
+        onDelta: (text) =>
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + text } : m))
+          ),
+        onDone: (final) => {
+          // The LLM may answer "not found" even when chunks were retrieved —
+          // the final event corrects grounded/citations sent provisionally in meta.
+          if (final) patchAssistant(assistantId, { grounded: final.grounded, citations: final.citations })
+          setLoading(false)
+        },
+        onError: () => {
+          patchAssistant(assistantId, { content: 'Error contacting API.' })
+          setLoading(false)
+        },
+      }
+    )
   }
 
   return (
@@ -58,7 +78,9 @@ export default function ChatPage() {
                   : 'bg-white border border-gray-200 rounded-2xl px-4 py-2 max-w-lg'
               }
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+              <p className="text-sm whitespace-pre-wrap">
+                {msg.content || (msg.role === 'assistant' && loading ? '…' : '')}
+              </p>
               {msg.citations && msg.citations.length > 0 && (
                 <div className="mt-2 text-xs text-gray-500 space-y-0.5">
                   {msg.citations.map((c, i) => (
@@ -72,13 +94,6 @@ export default function ChatPage() {
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl px-4 py-2 text-sm text-gray-400">
-              Thinking…
-            </div>
-          </div>
-        )}
         <div ref={bottomRef} />
       </div>
       <form onSubmit={handleSubmit} className="flex gap-2 pt-4 border-t border-gray-200">

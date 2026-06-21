@@ -1,12 +1,16 @@
 """
 M0 smoke test: embed 20 FAQ entries -> cosine query -> return best match.
-Run: DATABASE_URL_SYNC=... OPENAI_API_KEY=... python -m scripts.smoke_test_pgvector
+Uses the configured embedding provider (default: local fastembed, free/offline).
+Run: DATABASE_URL_SYNC=... python -m scripts.smoke_test_pgvector
 """
 import os
 import sys
 
 import psycopg2
-from openai import OpenAI
+from pgvector.psycopg2 import register_vector
+
+from app.config import settings
+from app.services.embeddings import embed_query, embed_texts
 
 FAQ = [
     ("What is DocSense?", "DocSense is an AI-powered document intelligence platform."),
@@ -35,35 +39,32 @@ QUERY = "How does DocSense prevent hallucinations?"
 
 
 def main():
-    api_key = os.environ.get("OPENAI_API_KEY")
     db_url = os.environ.get(
         "DATABASE_URL_SYNC", "postgresql://docsense:docsense@localhost:5432/docsense"
     )
+    dim = settings.embedding_dim
 
-    if not api_key:
-        print("OPENAI_API_KEY not set — skipping")
-        sys.exit(0)
-
-    client = OpenAI(api_key=api_key)
+    print(f"Provider: {settings.embedding_provider}  model: {settings.embedding_model}  dim: {dim}")
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
 
     cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS smoke_faq (
+    conn.commit()
+    register_vector(conn)
+    cur.execute("DROP TABLE IF EXISTS smoke_faq")
+    cur.execute(f"""
+        CREATE TABLE smoke_faq (
             id SERIAL PRIMARY KEY,
             question TEXT,
             answer TEXT,
-            embedding vector(1536)
+            embedding vector({dim})
         )
     """)
-    cur.execute("TRUNCATE smoke_faq")
     conn.commit()
 
     print(f"Embedding {len(FAQ)} FAQ entries...")
     texts = [f"{q} {a}" for q, a in FAQ]
-    resp = client.embeddings.create(model="text-embedding-3-small", input=texts)
-    vectors = [e.embedding for e in resp.data]
+    vectors = embed_texts(texts)
 
     for (q, a), vec in zip(FAQ, vectors):
         cur.execute(
@@ -73,8 +74,7 @@ def main():
     conn.commit()
 
     print(f"\nQuerying: '{QUERY}'")
-    q_resp = client.embeddings.create(model="text-embedding-3-small", input=[QUERY])
-    q_vec = q_resp.data[0].embedding
+    q_vec = embed_query(QUERY)
 
     cur.execute(
         """

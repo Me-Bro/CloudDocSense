@@ -5,10 +5,13 @@ services:
       - ./apps/api:/app
     environment:
       - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
 
   worker:
     volumes:
       - ./apps/worker:/app
+    environment:
+      - PYTHONUNBUFFERED=1
 
   web:
     build:
@@ -18,4 +21,6 @@ services:
       - ./apps/web:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000
+      # Vite dev-server proxy runs inside the web container, so /api must target
+      # the api service by its compose hostname (not localhost).
+      - VITE_API_URL=http://api:8000
