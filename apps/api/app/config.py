@@ -29,7 +29,21 @@ class Settings(BaseSettings):
     # OpenRouter (free-tier generation + vision)
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    generation_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    generation_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
+    # Fallback chain (comma-separated): tried in order when a model is rate-limited
+    # or unavailable. The primary generation_model is prepended automatically.
+    generation_models: str = (
+        "qwen/qwen3-next-80b-a3b-instruct:free,"
+        "google/gemma-4-31b-it:free,"
+        "google/gemma-4-26b-a4b-it:free,"
+        "meta-llama/llama-3.3-70b-instruct:free,"
+        "nvidia/nemotron-3-super-120b-a12b:free,"
+        "nvidia/nemotron-3-ultra-550b-a55b:free,"
+        "nousresearch/hermes-3-llama-3.1-405b:free,"
+        "nvidia/nemotron-3-nano-30b-a3b:free,"
+        "nvidia/nemotron-nano-9b-v2:free,"
+        "meta-llama/llama-3.2-3b-instruct:free"
+    )
     vision_model: str = "meta-llama/llama-3.2-11b-vision-instruct:free"
 
     # Embeddings — "local" (fastembed, free/offline) or "openai"

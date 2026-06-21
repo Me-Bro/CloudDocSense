@@ -1,6 +1,6 @@
 """Grounded answer generation from retrieved chunks (OpenRouter)."""
 from app.config import settings
-from app.services.llm import chat, get_client
+from app.services.llm import chat, stream_chat
 
 NOT_FOUND = "I could not find an answer in the provided documents."
 
@@ -47,13 +47,5 @@ def generate_answer(question: str, chunks: list[dict], history: list[dict] | Non
 
 
 def stream_answer(question: str, chunks: list[dict], history: list[dict] | None = None):
-    """Yield answer text deltas from the OpenRouter stream."""
-    stream = get_client().chat.completions.create(
-        model=settings.generation_model,
-        messages=build_messages(question, chunks, history),
-        stream=True,
-    )
-    for event in stream:
-        delta = event.choices[0].delta.content
-        if delta:
-            yield delta
+    """Yield answer text deltas, with model fallback handled in llm.stream_chat."""
+    yield from stream_chat(build_messages(question, chunks, history))
