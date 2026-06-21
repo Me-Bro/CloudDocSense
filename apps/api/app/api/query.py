@@ -115,10 +115,12 @@ async def query_stream(req: QueryRequest):
                 yield {"event": "delta", "data": generation.NOT_FOUND}
                 db.add(Message(conversation_id=conv.id, role="assistant", content=generation.NOT_FOUND))
                 await db.commit()
-                yield {"event": "done", "data": "{}"}
+                yield {"event": "done", "data": json.dumps({"grounded": False, "citations": []})}
                 return
 
             citations = generation.citations_from(chunks)
+            # Provisional: retrieval found chunks. The 'done' event below carries the
+            # final grounded state (the LLM may still answer "not found").
             yield {"event": "meta", "data": json.dumps(
                 {"conversation_id": conv.id, "grounded": True, "citations": citations})}
 
@@ -133,9 +135,12 @@ async def query_stream(req: QueryRequest):
                 yield {"event": "delta", "data": msg}
 
             answer = "".join(parts)
+            grounded = generation.NOT_FOUND not in answer
+            final_citations = citations if grounded else []
             db.add(Message(
-                conversation_id=conv.id, role="assistant", content=answer, citations=citations))
+                conversation_id=conv.id, role="assistant", content=answer, citations=final_citations))
             await db.commit()
-            yield {"event": "done", "data": "{}"}
+            yield {"event": "done", "data": json.dumps(
+                {"grounded": grounded, "citations": final_citations})}
 
     return EventSourceResponse(gen())

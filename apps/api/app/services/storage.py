@@ -37,3 +37,15 @@ def upload_bytes(key: str, data: bytes, content_type: str | None = None) -> str:
         ContentType=content_type or "application/octet-stream",
     )
     return key
+
+
+def download_bytes(key: str) -> tuple[bytes, str]:
+    """Return (raw bytes, content_type) for an S3 object."""
+    obj = _client().get_object(Bucket=settings.s3_bucket, Key=key)
+    data = obj["Body"].read()
+    content_type = obj.get("ContentType", "application/octet-stream")
+    return data, content_type
+
+
+def delete_object(key: str) -> None:
+    _client().delete_object(Bucket=settings.s3_bucket, Key=key)

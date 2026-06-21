@@ -42,10 +42,15 @@ export interface StreamMeta {
   citations: Citation[]
 }
 
+export interface StreamFinal {
+  grounded: boolean
+  citations: Citation[]
+}
+
 export interface StreamCallbacks {
   onMeta?: (meta: StreamMeta) => void
   onDelta?: (text: string) => void
-  onDone?: () => void
+  onDone?: (final?: StreamFinal) => void
   onError?: (err: unknown) => void
 }
 
@@ -58,11 +63,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return resp.json() as Promise<T>
 }
 
-/** Parse a single SSE block ("event: x\ndata: a\ndata: b") into {event, data}. */
+/** Parse a single SSE block into {event, data}. Tolerates CRLF and LF line endings. */
 function parseSseBlock(block: string): { event: string; data: string } {
   let event = 'message'
   const dataLines: string[] = []
-  for (const line of block.split('\n')) {
+  for (const raw of block.split(/\r?\n/)) {
+    const line = raw.replace(/\r$/, '')
     if (line.startsWith('event:')) event = line.slice(6).trim()
     else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''))
   }
@@ -89,22 +95,28 @@ export const apiClient = {
         const reader = resp.body.getReader()
         const decoder = new TextDecoder()
         let buf = ''
+        let doneFired = false
         for (;;) {
           const { value, done } = await reader.read()
           if (done) break
           buf += decoder.decode(value, { stream: true })
-          let idx: number
-          while ((idx = buf.indexOf('\n\n')) !== -1) {
+          // SSE events are separated by a blank line — CRLFCRLF or LFLF.
+          let m: RegExpMatchArray | null
+          while ((m = buf.match(/\r\n\r\n|\n\n/)) !== null) {
+            const idx = m.index!
             const block = buf.slice(0, idx)
-            buf = buf.slice(idx + 2)
+            buf = buf.slice(idx + m[0].length)
             if (!block.trim()) continue
             const { event, data } = parseSseBlock(block)
             if (event === 'meta') cb.onMeta?.(JSON.parse(data) as StreamMeta)
             else if (event === 'delta') cb.onDelta?.(data)
-            else if (event === 'done') cb.onDone?.()
+            else if (event === 'done') {
+              doneFired = true
+              cb.onDone?.(data ? (JSON.parse(data) as StreamFinal) : undefined)
+            }
           }
         }
-        cb.onDone?.()
+        if (!doneFired) cb.onDone?.()
       } catch (err) {
         if (!controller.signal.aborted) cb.onError?.(err)
       }
@@ -127,4 +139,19 @@ export const apiClient = {
     request<{ documents: DocumentInfo[]; workspace_id: string }>(
       `/ingest/documents?workspace_id=${workspaceId}`
     ),
+
+  deleteDocument: (docId: string) =>
+    request<{ deleted: string }>(`/ingest/documents/${docId}`, { method: 'DELETE' }),
+
+  downloadDocument: async (docId: string, filename: string): Promise<void> => {
+    const resp = await fetch(`${BASE}/ingest/documents/${docId}/download`)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

@@ -1,13 +1,14 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Document
 from app.services.queue import enqueue_ingest
-from app.services.storage import upload_bytes
+from app.services.storage import delete_object, download_bytes, upload_bytes
 
 router = APIRouter()
 
@@ -43,6 +44,38 @@ async def upload_document(
         "status": "pending",
         "task_id": task_id,
     }
+
+
+@router.get("/documents/{doc_id}/download")
+async def download_document(doc_id: str, db: AsyncSession = Depends(get_db)):
+    doc = await db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    s3_key = f"{doc.workspace_id}/{doc.id}/{doc.filename}"
+    try:
+        data, content_type = download_bytes(s3_key)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found in storage")
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{doc.filename}"'},
+    )
+
+
+@router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
+    doc = await db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    s3_key = f"{doc.workspace_id}/{doc.id}/{doc.filename}"
+    try:
+        delete_object(s3_key)
+    except Exception:
+        pass  # best-effort; still delete DB record
+    await db.delete(doc)
+    await db.commit()
+    return {"deleted": doc_id}
 
 
 @router.get("/documents")

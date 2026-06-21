@@ -49,7 +49,12 @@ export default function ChatPage() {
           setMessages((prev) =>
             prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + text } : m))
           ),
-        onDone: () => setLoading(false),
+        onDone: (final) => {
+          // The LLM may answer "not found" even when chunks were retrieved —
+          // the final event corrects grounded/citations sent provisionally in meta.
+          if (final) patchAssistant(assistantId, { grounded: final.grounded, citations: final.citations })
+          setLoading(false)
+        },
         onError: () => {
           patchAssistant(assistantId, { content: 'Error contacting API.' })
           setLoading(false)
