@@ -1,29 +1,54 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { apiClient, type UploadResponse } from '../lib/apiClient'
+import { apiClient, type DocumentInfo } from '../lib/apiClient'
+
+const WORKSPACE = 'default'
+
+const STATUS_STYLE: Record<string, string> = {
+  indexed: 'text-green-600',
+  pending: 'text-amber-600',
+  processing: 'text-amber-600',
+  failed: 'text-red-500',
+  unsupported: 'text-red-500',
+  error: 'text-red-500',
+}
 
 export default function UploadPage() {
-  const [results, setResults] = useState<UploadResponse[]>([])
+  const [docs, setDocs] = useState<DocumentInfo[]>([])
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const onDrop = useCallback(async (accepted: File[]) => {
-    setUploading(true)
-    const uploads = await Promise.allSettled(
-      accepted.map((f) => apiClient.uploadDocument(f, 'default'))
-    )
-    const newResults = uploads.map((r, i) =>
-      r.status === 'fulfilled'
-        ? r.value
-        : {
-            filename: accepted[i].name,
-            workspace_id: 'default',
-            status: 'error',
-            message: String((r as PromiseRejectedResult).reason),
-          }
-    )
-    setResults((prev) => [...newResults, ...prev])
-    setUploading(false)
+  const refresh = useCallback(async () => {
+    try {
+      const data = await apiClient.listDocuments(WORKSPACE)
+      setDocs(data.documents)
+    } catch (e) {
+      setError(String(e))
+    }
   }, [])
+
+  // Initial load + poll while anything is still pending/processing.
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    const inFlight = docs.some((d) => d.status === 'pending' || d.status === 'processing')
+    if (!inFlight) return
+    const t = setInterval(refresh, 1500)
+    return () => clearInterval(t)
+  }, [docs, refresh])
+
+  const onDrop = useCallback(
+    async (accepted: File[]) => {
+      setUploading(true)
+      setError(null)
+      await Promise.allSettled(accepted.map((f) => apiClient.uploadDocument(f, WORKSPACE)))
+      setUploading(false)
+      void refresh()
+    },
+    [refresh]
+  )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
 
@@ -34,9 +59,7 @@ export default function UploadPage() {
         {...getRootProps()}
         className={[
           'border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors',
-          isDragActive
-            ? 'border-indigo-500 bg-indigo-50'
-            : 'border-gray-300 hover:border-gray-400',
+          isDragActive ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-gray-400',
         ].join(' ')}
       >
         <input {...getInputProps()} />
@@ -49,17 +72,18 @@ export default function UploadPage() {
         )}
         <p className="text-xs text-gray-400 mt-2">PDF, DOCX, TXT supported</p>
       </div>
-      {results.length > 0 && (
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {docs.length > 0 && (
         <div className="space-y-2">
-          {results.map((r, i) => (
+          {docs.map((d) => (
             <div
-              key={i}
+              key={d.id}
               className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm"
             >
-              <span className="font-medium text-gray-700">{r.filename}</span>
-              <span className={r.status === 'error' ? 'text-red-500' : 'text-gray-500'}>
-                {r.status}
-              </span>
+              <span className="font-medium text-gray-700">{d.filename}</span>
+              <span className={STATUS_STYLE[d.status] ?? 'text-gray-500'}>{d.status}</span>
             </div>
           ))}
         </div>

@@ -83,26 +83,46 @@ async def query_documents(req: QueryRequest, db: AsyncSession = Depends(get_db))
 
 @router.post("/stream")
 async def query_stream(req: QueryRequest):
-    """SSE token streaming (QRY-7). Sends 'meta' (citations) then 'delta' events, then 'done'."""
+    """SSE token streaming (QRY-7): 'meta' (conversation_id + citations) -> 'delta'* -> 'done'.
+
+    Persists the user + assistant messages so streaming supports multi-turn too.
+    """
 
     async def gen():
         async with AsyncSessionLocal() as db:
+            conv = await _get_or_create_conversation(db, req.conversation_id, req.workspace_id)
+            history = await _history(db, conv.id)
             chunks = await retrieval.retrieve(db, req.workspace_id, req.question)
+            db.add(Message(conversation_id=conv.id, role="user", content=req.question))
+            await db.commit()
 
-        if not chunks:
-            yield {"event": "meta", "data": json.dumps({"grounded": False, "citations": []})}
-            yield {"event": "delta", "data": generation.NOT_FOUND}
+            if not chunks:
+                yield {"event": "meta", "data": json.dumps(
+                    {"conversation_id": conv.id, "grounded": False, "citations": []})}
+                yield {"event": "delta", "data": generation.NOT_FOUND}
+                db.add(Message(conversation_id=conv.id, role="assistant", content=generation.NOT_FOUND))
+                await db.commit()
+                yield {"event": "done", "data": "{}"}
+                return
+
+            citations = generation.citations_from(chunks)
+            yield {"event": "meta", "data": json.dumps(
+                {"conversation_id": conv.id, "grounded": True, "citations": citations})}
+
+            parts: list[str] = []
+            try:
+                for delta in generation.stream_answer(req.question, chunks, history):
+                    parts.append(delta)
+                    yield {"event": "delta", "data": delta}
+            except Exception as e:
+                msg = f"(Generation unavailable: {type(e).__name__}.)"
+                parts.append(msg)
+                yield {"event": "delta", "data": msg}
+
+            answer = "".join(parts)
+            db.add(Message(
+                conversation_id=conv.id, role="assistant", content=answer, citations=citations))
+            await db.commit()
             yield {"event": "done", "data": "{}"}
-            return
-
-        citations = generation.citations_from(chunks)
-        yield {"event": "meta", "data": json.dumps({"grounded": True, "citations": citations})}
-
-        try:
-            for delta in generation.stream_answer(req.question, chunks):
-                yield {"event": "delta", "data": delta}
-        except Exception as e:
-            yield {"event": "delta", "data": f"(Generation unavailable: {type(e).__name__}.)"}
-        yield {"event": "done", "data": "{}"}
 
     return EventSourceResponse(gen())
