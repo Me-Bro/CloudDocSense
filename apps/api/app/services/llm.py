@@ -19,9 +19,13 @@ _FALLBACK_STATUS = {404, 429, 502, 503}
 
 @lru_cache(maxsize=1)
 def get_client() -> OpenAI:
+    # max_retries=0: our models_chain() handles rate limits by switching models.
+    # The SDK's default 2 retries with backoff would stall ~50s on a 429 before
+    # we ever reach the next model.
     return OpenAI(
         api_key=settings.openrouter_api_key or settings.openai_api_key,
         base_url=settings.openrouter_base_url or None,
+        max_retries=0,
     )
 
 
@@ -47,7 +51,10 @@ def chat(messages: list[dict], **kwargs) -> str:
     last: Exception | None = None
     for model in models_chain():
         try:
+            log.info("llm.try", model=model, stream=False)
             resp = get_client().chat.completions.create(model=model, messages=messages, **kwargs)
+            usage = getattr(resp, "usage", None)
+            log.info("llm.ok", model=model, tokens=getattr(usage, "total_tokens", None))
             return resp.choices[0].message.content or ""
         except Exception as e:  # noqa: BLE001 — decide fallback by status
             last = e
@@ -68,14 +75,18 @@ def stream_chat(messages: list[dict], **kwargs):
     for model in models_chain():
         started = False
         try:
+            log.info("llm.try", model=model, stream=True)
             stream = get_client().chat.completions.create(
                 model=model, messages=messages, stream=True, **kwargs
             )
             for event in stream:
                 delta = event.choices[0].delta.content
                 if delta:
+                    if not started:
+                        log.info("llm.stream_start", model=model)
                     started = True
                     yield delta
+            log.info("llm.stream_done", model=model)
             return
         except Exception as e:  # noqa: BLE001
             last = e

@@ -1,6 +1,7 @@
 import json
 import uuid
 
+import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -12,6 +13,7 @@ from app.models import Conversation, Message
 from app.services import generation, retrieval
 
 router = APIRouter()
+log = structlog.get_logger()
 
 HISTORY_LIMIT = 6  # last N messages carried as context (QRY-6)
 
@@ -46,24 +48,32 @@ async def _history(db: AsyncSession, conversation_id: str) -> list[dict]:
 
 @router.post("/")
 async def query_documents(req: QueryRequest, db: AsyncSession = Depends(get_db)):
+    log.info("query.start", workspace_id=req.workspace_id, question=req.question[:80], streaming=False)
     conv = await _get_or_create_conversation(db, req.conversation_id, req.workspace_id)
     history = await _history(db, conv.id)
+    log.info("query.context", conversation_id=conv.id, history_msgs=len(history))
 
     chunks = await retrieval.retrieve(db, req.workspace_id, req.question)
 
     db.add(Message(conversation_id=conv.id, role="user", content=req.question))
 
     if not chunks:
+        log.info("query.decision", path="not_found", reason="no_chunks_above_threshold")
         answer, grounded, citations = generation.NOT_FOUND, False, []
     else:
         citations = generation.citations_from(chunks)
         grounded = True
         try:
+            log.info("query.generate", chunks=len(chunks))
             answer = generation.generate_answer(req.question, chunks, history)
             if generation.NOT_FOUND in answer:
                 grounded, citations = False, []
+                log.info("query.decision", path="not_found", reason="llm_ungrounded")
+            else:
+                log.info("query.decision", path="grounded", answer_chars=len(answer))
         except Exception as e:
             # Retrieval succeeded; generation failed (missing/invalid key, rate limit).
+            log.warning("query.generation_failed", error=type(e).__name__)
             answer = (
                 f"(Generation unavailable: {type(e).__name__}. Set a valid OPENROUTER_API_KEY.)\n\n"
                 "Top retrieved context:\n\n"
@@ -71,6 +81,7 @@ async def query_documents(req: QueryRequest, db: AsyncSession = Depends(get_db))
             )
 
     db.add(Message(conversation_id=conv.id, role="assistant", content=answer, citations=citations))
+    log.info("query.done", conversation_id=conv.id, grounded=grounded, citations=len(citations))
 
     return {
         "answer": answer,
@@ -87,6 +98,8 @@ async def query_stream(req: QueryRequest):
 
     Persists the user + assistant messages so streaming supports multi-turn too.
     """
+
+    log.info("query.start", workspace_id=req.workspace_id, question=req.question[:80], streaming=True)
 
     async def gen():
         async with AsyncSessionLocal() as db:

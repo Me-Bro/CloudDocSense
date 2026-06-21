@@ -5,10 +5,13 @@ services:
       - ./apps/api:/app
     environment:
       - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
 
   worker:
     volumes:
       - ./apps/worker:/app
+    environment:
+      - PYTHONUNBUFFERED=1
 
   web:
     build:

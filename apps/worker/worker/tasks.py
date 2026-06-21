@@ -25,8 +25,13 @@ def ingest_document(
         set_document_status(conn, document_id, "processing")
         try:
             data = download_bytes(s3_key)
+            log.info("ingest.fetched", document_id=document_id, bytes=len(data))
+
             segments = parse(filename or s3_key, mime_type, data)
+            log.info("ingest.parsed", document_id=document_id, segments=len(segments))
+
             chunks = chunk_segments(segments)
+            log.info("ingest.chunked", document_id=document_id, chunks=len(chunks))
 
             if not chunks:
                 set_document_status(conn, document_id, "indexed")
@@ -34,9 +39,17 @@ def ingest_document(
                 return {"document_id": document_id, "status": "indexed", "chunks": 0}
 
             embeddings = embed_texts([c["text"] for c in chunks])
+            log.info(
+                "ingest.embedded",
+                document_id=document_id,
+                vectors=len(embeddings),
+                model=settings.embedding_model,
+            )
+
             count = replace_chunks(
                 conn, document_id, workspace_id, chunks, embeddings, settings.embedding_model
             )
+            log.info("ingest.upserted", document_id=document_id, chunks=count)
             set_document_status(conn, document_id, "indexed")
             log.info("ingest.done", document_id=document_id, chunks=count)
             return {"document_id": document_id, "status": "indexed", "chunks": count}

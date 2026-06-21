@@ -3,11 +3,14 @@
 Returns chunks above the confidence threshold. Empty result => the caller
 should answer "not found" rather than generate (grounded-by-default).
 """
+import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.embeddings import embed_query
+
+log = structlog.get_logger()
 
 
 def _vec_literal(vec: list[float]) -> str:
@@ -24,6 +27,7 @@ async def retrieve(
 ) -> list[dict]:
     k = top_k or settings.retrieval_top_k
     thr = settings.retrieval_confidence_threshold if threshold is None else threshold
+    log.info("retrieval.embed_query", workspace_id=workspace_id, query=query[:80], top_k=k, threshold=thr)
     qvec = _vec_literal(embed_query(query))
 
     sql = text(
@@ -49,4 +53,12 @@ async def retrieve(
         }
         for r in result
     ]
-    return [r for r in rows if r["similarity"] >= thr]
+    kept = [r for r in rows if r["similarity"] >= thr]
+    log.info(
+        "retrieval.done",
+        retrieved=len(rows),
+        kept=len(kept),
+        top_sim=round(rows[0]["similarity"], 3) if rows else None,
+        sources=[r["filename"] for r in kept],
+    )
+    return kept
