@@ -22,11 +22,20 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_bucket: str = "docsense-docs"
 
-    # AI
+    # AI — generation via OpenRouter (OpenAI-compatible), embeddings local by default
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dim: int = 1536
+
+    # OpenRouter (free-tier generation + vision)
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    generation_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    vision_model: str = "meta-llama/llama-3.2-11b-vision-instruct:free"
+
+    # Embeddings — "local" (fastembed, free/offline) or "openai"
+    embedding_provider: str = "local"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_dim: int = 384
 
     # Retrieval
     retrieval_top_k: int = 5

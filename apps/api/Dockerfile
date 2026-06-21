@@ -12,4 +12,8 @@ COPY scripts ./scripts
 
 RUN uv pip install --system --no-cache -e .
 
+# Pre-download the local embedding model so it's cached in the image (offline/fast).
+ARG EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('${EMBEDDING_MODEL}')"
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
