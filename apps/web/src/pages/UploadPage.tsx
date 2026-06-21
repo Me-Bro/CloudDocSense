@@ -85,8 +85,8 @@ export default function UploadPage() {
     try {
       await apiClient.deleteDocument(doc.id)
       await refresh()
-    } catch {
-      setError(`Failed to delete ${doc.filename}`)
+    } catch (e) {
+      setError(`Failed to delete ${doc.filename}: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setDeleting(null)
     }

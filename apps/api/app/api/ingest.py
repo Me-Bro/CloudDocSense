@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Document
+from app.models import Chunk, Document
 from app.services.queue import enqueue_ingest
 from app.services.storage import delete_object, download_bytes, upload_bytes
 
@@ -73,6 +73,10 @@ async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
         delete_object(s3_key)
     except Exception:
         pass  # best-effort; still delete DB record
+    # Delete chunks first to satisfy FK constraint
+    chunks = await db.execute(select(Chunk).where(Chunk.document_id == doc_id))
+    for chunk in chunks.scalars().all():
+        await db.delete(chunk)
     await db.delete(doc)
     await db.commit()
     return {"deleted": doc_id}
