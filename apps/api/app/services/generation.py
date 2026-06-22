@@ -39,7 +39,13 @@ def citations_from(chunks: list[dict]) -> list[dict]:
 
 
 def generation_available() -> bool:
-    return bool(settings.openrouter_api_key or settings.openai_api_key or settings.groq_api_key)
+    return bool(
+        settings.openrouter_api_key
+        or settings.openai_api_key
+        or settings.groq_api_key
+        or settings.cerebras_api_key
+        or settings.mistral_api_key
+    )
 
 
 def generate_answer(question: str, chunks: list[dict], history: list[dict] | None = None) -> str:

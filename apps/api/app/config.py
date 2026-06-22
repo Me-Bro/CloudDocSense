@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
 
+    # Cerebras (free-tier, wafer-scale ~2000 tok/s) — get key at https://cloud.cerebras.ai
+    cerebras_api_key: str = ""
+    cerebras_base_url: str = "https://api.cerebras.ai/v1"
+
+    # Mistral AI (free-tier, rate limited) — get key at https://console.mistral.ai/api-keys
+    mistral_api_key: str = ""
+    mistral_base_url: str = "https://api.mistral.ai/v1"
+
     generation_model: str = "qwen/qwen3-next-80b-a3b-instruct:free"
     # Fallback chain (comma-separated, "provider>model_id" format).
     # No prefix = openrouter. Tried in order on 429/404/502/503.
@@ -46,6 +54,9 @@ class Settings(BaseSettings):
         # Groq — fast free inference
         "groq>llama-3.3-70b-versatile,"
         "groq>qwen/qwen3.6-27b,"
+        # Cerebras — wafer-scale, extremely fast free inference
+        "cerebras>llama-3.3-70b,"
+        "cerebras>qwen-3-32b,"
         # OpenRouter — mid-size free models
         "google/gemma-4-31b-it:free,"
         "google/gemma-4-26b-a4b-it:free,"
@@ -58,6 +69,11 @@ class Settings(BaseSettings):
         "nvidia/nemotron-3-nano-30b-a3b:free,"
         # Groq — small fast fallback
         "groq>llama-3.1-8b-instant,"
+        # Mistral — free tier (rate limited)
+        "mistral>mistral-small-latest,"
+        "mistral>open-mistral-nemo,"
+        # Cerebras — small fast fallback
+        "cerebras>llama-3.1-8b,"
         # OpenRouter — small fallbacks
         "nvidia/nemotron-nano-9b-v2:free,"
         "meta-llama/llama-3.2-3b-instruct:free"

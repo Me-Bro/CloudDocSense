@@ -34,6 +34,14 @@ def _provider_registry() -> dict[str, dict]:
             "api_key": settings.groq_api_key,
             "base_url": settings.groq_base_url,
         },
+        "cerebras": {
+            "api_key": settings.cerebras_api_key,
+            "base_url": settings.cerebras_base_url,
+        },
+        "mistral": {
+            "api_key": settings.mistral_api_key,
+            "base_url": settings.mistral_base_url,
+        },
     }
 
 
