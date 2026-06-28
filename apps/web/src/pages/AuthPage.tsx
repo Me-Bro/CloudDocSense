@@ -22,7 +22,7 @@ export default function AuthPage() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('400')) setError('Email already registered.')
+      if (msg.includes('400')) setError('duplicate_email')
       else if (msg.includes('401')) setError('Invalid email or password.')
       else setError('Something went wrong. Try again.')
     } finally {
@@ -78,7 +78,22 @@ export default function AuthPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && (
+            error === 'duplicate_email' ? (
+              <p className="text-sm text-red-500">
+                An account with <span className="font-medium">{email}</span> already exists.{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setError(null) }}
+                  className="underline font-medium hover:text-red-700"
+                >
+                  Sign in instead?
+                </button>
+              </p>
+            ) : (
+              <p className="text-sm text-red-500">{error}</p>
+            )
+          )}
 
           <button
             type="submit"
