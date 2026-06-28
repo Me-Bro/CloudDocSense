@@ -95,24 +95,26 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-800">Upload Documents</h1>
+      <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Upload Documents</h1>
 
       <div
         {...getRootProps()}
         className={[
           'border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors',
-          isDragActive ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-gray-400',
+          isDragActive
+            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+            : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600',
         ].join(' ')}
       >
         <input {...getInputProps()} />
         {uploading ? (
-          <p className="text-gray-500">Uploading…</p>
+          <p className="text-gray-500 dark:text-gray-400">Uploading…</p>
         ) : isDragActive ? (
-          <p className="text-indigo-600">Drop files here</p>
+          <p className="text-indigo-600 dark:text-indigo-400">Drop files here</p>
         ) : (
-          <p className="text-gray-500">Drag & drop files here, or click to select</p>
+          <p className="text-gray-500 dark:text-gray-400">Drag & drop files here, or click to select</p>
         )}
-        <p className="text-xs text-gray-400 mt-2">PDF, DOCX, TXT supported</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">PDF, DOCX, TXT supported</p>
       </div>
 
       {error && (
@@ -126,20 +128,20 @@ export default function UploadPage() {
 
       {docs.length > 0 && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-gray-400 px-4 pb-1">
+          <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 px-4 pb-1">
             <span>{docs.length} document{docs.length !== 1 ? 's' : ''}</span>
           </div>
           {docs.map((d) => (
             <div
               key={d.id}
-              className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm gap-4"
+              className="flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 text-sm gap-4"
             >
               {/* Left: status dot + name + date */}
               <div className="flex items-center gap-3 min-w-0">
                 <span className={`shrink-0 w-2 h-2 rounded-full ${STATUS_DOT[d.status] ?? 'bg-gray-400'}`} />
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-800 truncate">{d.filename}</p>
-                  <p className="text-xs text-gray-400">{formatDate(d.created_at)}</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-100 truncate">{d.filename}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(d.created_at)}</p>
                 </div>
               </div>
 
@@ -154,7 +156,7 @@ export default function UploadPage() {
                   onClick={() => handleDownload(d)}
                   disabled={downloading === d.id || deleting === d.id}
                   title="Download"
-                  className="p-1.5 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 transition-colors"
+                  className="p-1.5 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-40 transition-colors"
                 >
                   {downloading === d.id ? (
                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -173,7 +175,7 @@ export default function UploadPage() {
                   onClick={() => setConfirmDelete(d)}
                   disabled={deleting === d.id || downloading === d.id}
                   title="Delete"
-                  className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                  className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 transition-colors"
                 >
                   {deleting === d.id ? (
                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -194,16 +196,16 @@ export default function UploadPage() {
 
       {/* Delete confirm modal */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
-            <h2 className="text-base font-semibold text-gray-800">Delete document?</h2>
-            <p className="text-sm text-gray-600">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Delete document?</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               <span className="font-medium">{confirmDelete.filename}</span> will be permanently removed from storage and the index.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>

@@ -32,7 +32,7 @@ function ThinkingAnimation() {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1 text-sm text-indigo-600 font-medium">
+      <div className="flex items-center gap-1 text-sm text-indigo-600 dark:text-indigo-400 font-medium">
         <span>{THINKING_PHASES[phaseIdx]}</span>
         <span className={visible ? 'opacity-100' : 'opacity-0'} style={{ transition: 'opacity 0.1s' }}>▌</span>
       </div>
@@ -174,8 +174,8 @@ export default function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-120px)] gap-0">
       {/* ── Sidebar ── */}
-      <aside className="w-56 shrink-0 flex flex-col border-r border-gray-200 bg-white">
-        <div className="p-3 border-b border-gray-100">
+      <aside className="w-56 shrink-0 flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div className="p-3 border-b border-gray-100 dark:border-gray-800">
           <button
             onClick={startNewChat}
             className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg py-2 transition-colors"
@@ -189,9 +189,9 @@ export default function ChatPage() {
 
         <div className="flex-1 overflow-y-auto py-2">
           {historyLoading ? (
-            <p className="text-xs text-gray-400 text-center mt-6">Loading…</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-6">Loading…</p>
           ) : conversations.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center mt-6 px-3">No chats yet</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-6 px-3">No chats yet</p>
           ) : (
             conversations.map((c) => (
               <div
@@ -200,12 +200,12 @@ export default function ChatPage() {
                 className={[
                   'group relative mx-2 mb-1 rounded-lg px-3 py-2 cursor-pointer transition-colors',
                   conversationId === c.id
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'hover:bg-gray-50 text-gray-700',
+                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300',
                 ].join(' ')}
               >
                 <p className="text-xs font-medium truncate pr-5">{c.preview}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{relativeTime(c.created_at)}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{relativeTime(c.created_at)}</p>
 
                 {/* delete button */}
                 <button
@@ -235,7 +235,7 @@ export default function ChatPage() {
       <div className="flex flex-col flex-1 min-w-0">
         <div className="flex-1 overflow-y-auto space-y-4 p-4">
           {messages.length === 0 && (
-            <p className="text-center text-gray-400 mt-20">Ask anything about your documents.</p>
+            <p className="text-center text-gray-400 dark:text-gray-500 mt-20">Ask anything about your documents.</p>
           )}
           {messages.map((msg) => (
             <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
@@ -243,19 +243,19 @@ export default function ChatPage() {
                 className={
                   msg.role === 'user'
                     ? 'bg-indigo-600 text-white rounded-2xl px-4 py-2 max-w-lg'
-                    : 'bg-white border border-gray-200 rounded-2xl px-4 py-2 max-w-lg'
+                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-2 max-w-lg'
                 }
               >
                 {msg.role === 'assistant' && loading && !msg.content ? (
                   <ThinkingAnimation />
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap">
+                  <p className="text-sm whitespace-pre-wrap dark:text-gray-100">
                     {msg.content}
                     {msg.role === 'assistant' && loading && msg.content && <StreamingPulse />}
                   </p>
                 )}
                 {msg.citations && msg.citations.length > 0 && (
-                  <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
                     {msg.citations.map((c, i) => (
                       <p key={i}>
                         ↗ {c.source}{c.page ? ` p.${c.page}` : ''}
@@ -269,12 +269,12 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        <form onSubmit={handleSubmit} className="flex gap-2 p-4 border-t border-gray-200">
+        <form onSubmit={handleSubmit} className="flex gap-2 p-4 border-t border-gray-200 dark:border-gray-800">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question about your documents…"
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
             type="submit"
