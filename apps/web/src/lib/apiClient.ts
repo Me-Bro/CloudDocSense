@@ -81,6 +81,21 @@ export interface AuthResponse {
   token_type: string
 }
 
+export interface ConversationSummary {
+  id: string
+  workspace_id: string
+  preview: string
+  created_at: string | null
+}
+
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  citations: Citation[]
+  created_at: string | null
+}
+
 function authHeaders(): Record<string, string> {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -218,6 +233,16 @@ export const apiClient = {
     a.click()
     URL.revokeObjectURL(url)
   },
+
+  // ── Conversations ─────────────────────────────────────────────────────────
+  listConversations: (limit = 50) =>
+    request<{ conversations: ConversationSummary[] }>(`/conversations/?limit=${limit}`),
+
+  getConversationMessages: (id: string) =>
+    request<{ conversation_id: string; messages: ConversationMessage[] }>(`/conversations/${id}/messages`),
+
+  deleteConversation: (id: string) =>
+    request<{ deleted: string }>(`/conversations/${id}`, { method: 'DELETE' }),
 
   // ── Search History ─────────────────────────────────────────────────────────
   getSearchHistory: (limit = 50) =>
