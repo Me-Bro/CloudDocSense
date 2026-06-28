@@ -10,6 +10,51 @@ interface Message {
   grounded?: boolean
 }
 
+const THINKING_PHASES = [
+  'Searching documents',
+  'Reading context',
+  'Composing answer',
+]
+
+function ThinkingAnimation() {
+  const [phaseIdx, setPhaseIdx] = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const blink = setInterval(() => setVisible((v) => !v), 530)
+    return () => clearInterval(blink)
+  }, [])
+
+  useEffect(() => {
+    const cycle = setInterval(() => setPhaseIdx((i) => (i + 1) % THINKING_PHASES.length), 1500)
+    return () => clearInterval(cycle)
+  }, [])
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1 text-sm text-indigo-600 font-medium">
+        <span>{THINKING_PHASES[phaseIdx]}</span>
+        <span className={visible ? 'opacity-100' : 'opacity-0'} style={{ transition: 'opacity 0.1s' }}>▌</span>
+      </div>
+      <div className="flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"
+            style={{ animationDelay: `${i * 150}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StreamingPulse() {
+  return (
+    <span className="inline-block w-1.5 h-3.5 bg-indigo-400 rounded-sm animate-pulse ml-0.5 align-middle" />
+  )
+}
+
 function relativeTime(iso: string | null): string {
   if (!iso) return ''
   const diff = Date.now() - new Date(iso).getTime()
@@ -201,9 +246,14 @@ export default function ChatPage() {
                     : 'bg-white border border-gray-200 rounded-2xl px-4 py-2 max-w-lg'
                 }
               >
-                <p className="text-sm whitespace-pre-wrap">
-                  {msg.content || (msg.role === 'assistant' && loading ? '…' : '')}
-                </p>
+                {msg.role === 'assistant' && loading && !msg.content ? (
+                  <ThinkingAnimation />
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">
+                    {msg.content}
+                    {msg.role === 'assistant' && loading && msg.content && <StreamingPulse />}
+                  </p>
+                )}
                 {msg.citations && msg.citations.length > 0 && (
                   <div className="mt-2 text-xs text-gray-500 space-y-0.5">
                     {msg.citations.map((c, i) => (
