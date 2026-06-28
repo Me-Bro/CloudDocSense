@@ -20,9 +20,10 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def create_access_token(user_id: str, email: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": user_id, "email": email, "exp": expire}
+def create_access_token(user_id: str, email: str, is_guest: bool = False) -> str:
+    minutes = settings.guest_session_minutes if is_guest else settings.jwt_expire_minutes
+    expire = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+    payload = {"sub": user_id, "email": email, "exp": expire, "is_guest": is_guest}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
@@ -52,4 +53,13 @@ async def get_current_user(
     user = await db.get(User, user_id)
     if not user or not user.is_active:
         raise credentials_exc
+
+    if user.is_guest and user.guest_expires_at:
+        if datetime.now(timezone.utc) > user.guest_expires_at.replace(tzinfo=timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Guest session expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     return user

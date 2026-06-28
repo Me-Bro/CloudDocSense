@@ -30,7 +30,8 @@ function ProfileDropdown() {
 
   if (!user) return null
 
-  const abbr = initials(user.displayName, user.email)
+  const displayEmail = user.isGuest ? 'Guest session' : user.email
+  const abbr = user.isGuest ? 'G' : initials(user.displayName, user.email)
 
   return (
     <div ref={ref} className="relative">
@@ -43,7 +44,7 @@ function ProfileDropdown() {
           {abbr}
         </span>
         <span className="text-sm text-gray-700 font-medium hidden sm:inline">
-          {user.displayName ?? user.email}
+          {user.isGuest ? 'Guest' : (user.displayName ?? user.email)}
         </span>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -64,7 +65,7 @@ function ProfileDropdown() {
               {user.displayName && (
                 <p className="text-sm font-semibold text-gray-800 truncate">{user.displayName}</p>
               )}
-              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
             </div>
           </div>
 
@@ -86,8 +87,25 @@ function ProfileDropdown() {
   )
 }
 
+function GuestBanner() {
+  const { logout } = useAuth()
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 flex items-center justify-between text-sm">
+      <span className="text-amber-800">
+        Guest session — up to 2 docs, data clears when you close the tab.
+      </span>
+      <button
+        onClick={logout}
+        className="ml-4 text-indigo-600 font-medium hover:underline shrink-0"
+      >
+        Sign up to save your work
+      </button>
+    </div>
+  )
+}
+
 function Shell() {
-  const { isAuthed, isLoading } = useAuth()
+  const { isAuthed, isGuest, isLoading } = useAuth()
 
   if (isLoading) {
     return (
@@ -101,6 +119,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {isGuest && <GuestBanner />}
       <nav className="bg-white border-b border-gray-200 px-6 py-3 flex gap-6 items-center">
         <span className="font-bold text-lg text-indigo-600">DocSense</span>
         <NavLink

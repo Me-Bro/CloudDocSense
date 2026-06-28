@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
+    guest_session_minutes: int = 120
 
 
 settings = Settings()

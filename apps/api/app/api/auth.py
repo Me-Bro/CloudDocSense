@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -29,6 +31,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    is_guest: bool = False
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -64,11 +67,37 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     return TokenResponse(access_token=create_access_token(user.id, user.email))
 
 
+@router.post("/guest", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def guest_session(db: AsyncSession = Depends(get_db)):
+    guest_id = str(uuid.uuid4())
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.guest_session_minutes)
+    user = User(
+        id=guest_id,
+        email=f"guest_{guest_id}@guest.internal",
+        hashed_password=hash_password(str(uuid.uuid4())),
+        display_name="Guest",
+        is_guest=True,
+        guest_expires_at=expires_at.replace(tzinfo=None),
+    )
+    db.add(user)
+    await db.flush()
+
+    ws = Workspace(id=str(uuid.uuid4()), name="guest-session", owner_id=user.id)
+    db.add(ws)
+
+    log.info("auth.guest", user_id=user.id, expires_at=expires_at.isoformat())
+    return TokenResponse(
+        access_token=create_access_token(user.id, user.email, is_guest=True),
+        is_guest=True,
+    )
+
+
 @router.get("/me")
 async def me(current_user: User = Depends(get_current_user)):
     return {
         "id": current_user.id,
         "email": current_user.email,
         "display_name": current_user.display_name,
+        "is_guest": current_user.is_guest,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
     }

@@ -60,6 +60,7 @@ export interface UserInfo {
   id: string
   email: string
   display_name: string | null
+  is_guest: boolean
   created_at: string | null
 }
 
@@ -79,6 +80,7 @@ export interface SearchHistoryItem {
 export interface AuthResponse {
   access_token: string
   token_type: string
+  is_guest?: boolean
 }
 
 export interface ConversationSummary {
@@ -139,6 +141,9 @@ export const apiClient = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
+
+  loginAsGuest: () =>
+    request<AuthResponse>('/auth/guest', { method: 'POST' }),
 
   getMe: () => request<UserInfo>('/auth/me'),
 

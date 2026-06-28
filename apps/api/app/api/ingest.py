@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,6 +14,8 @@ from app.services.queue import enqueue_ingest
 from app.services.storage import delete_object, download_bytes, upload_bytes
 
 router = APIRouter()
+
+GUEST_DOC_LIMIT = 2
 
 
 async def _resolve_workspace(workspace_id: str, user: User, db: AsyncSession) -> Workspace:
@@ -33,6 +35,17 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
 ):
     ws = await _resolve_workspace(workspace_id, current_user, db)
+
+    if current_user.is_guest:
+        count_result = await db.execute(
+            select(func.count()).select_from(Document).where(Document.owner_id == current_user.id)
+        )
+        doc_count = count_result.scalar_one()
+        if doc_count >= GUEST_DOC_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Guest accounts are limited to {GUEST_DOC_LIMIT} documents. Sign up to upload more.",
+            )
 
     data = await file.read()
     doc = Document(

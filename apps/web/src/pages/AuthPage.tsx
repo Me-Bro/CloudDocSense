@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function AuthPage() {
-  const { login, register } = useAuth()
+  const { login, register, loginAsGuest } = useAuth()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [guestLoading, setGuestLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,6 +28,18 @@ export default function AuthPage() {
       else setError('Something went wrong. Try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleGuest() {
+    setError(null)
+    setGuestLoading(true)
+    try {
+      await loginAsGuest()
+    } catch {
+      setError('Could not start guest session. Try again.')
+    } finally {
+      setGuestLoading(false)
     }
   }
 
@@ -103,6 +116,27 @@ export default function AuthPage() {
             {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-xs text-gray-400">
+            <span className="bg-white px-2">or</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleGuest}
+          disabled={guestLoading}
+          className="w-full border border-gray-300 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          {guestLoading ? 'Starting session…' : 'Continue as Guest'}
+        </button>
+
+        <p className="text-center text-xs text-gray-400">
+          Guest sessions last 2 hours and data is not saved.
+        </p>
 
         <p className="text-center text-sm text-gray-500">
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}

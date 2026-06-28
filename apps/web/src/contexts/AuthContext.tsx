@@ -6,15 +6,18 @@ interface AuthUser {
   id: string
   email: string
   displayName: string | null
+  isGuest: boolean
 }
 
 interface AuthState {
   user: AuthUser | null
   workspaceId: string | null
   isAuthed: boolean
+  isGuest: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName?: string) => Promise<void>
+  loginAsGuest: () => Promise<void>
   logout: () => void
 }
 
@@ -36,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!token) { setIsLoading(false); return }
     try {
       const [me, wsList] = await Promise.all([apiClient.getMe(), apiClient.listWorkspaces()])
-      setUser({ id: me.id, email: me.email, displayName: me.display_name })
+      setUser({ id: me.id, email: me.email, displayName: me.display_name, isGuest: me.is_guest })
       setWorkspaceId(wsList.workspaces[0]?.id ?? null)
     } catch {
       setToken(null)
@@ -55,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const afterAuth = async (token: string) => {
     setToken(token)
     const [me, wsList] = await Promise.all([apiClient.getMe(), apiClient.listWorkspaces()])
-    setUser({ id: me.id, email: me.email, displayName: me.display_name })
+    setUser({ id: me.id, email: me.email, displayName: me.display_name, isGuest: me.is_guest })
     setWorkspaceId(wsList.workspaces[0]?.id ?? null)
   }
 
@@ -69,8 +72,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await afterAuth(r.access_token)
   }
 
+  const loginAsGuest = async () => {
+    const r = await apiClient.loginAsGuest()
+    await afterAuth(r.access_token)
+  }
+
+  const isGuest = user?.isGuest ?? false
+
   return (
-    <AuthContext.Provider value={{ user, workspaceId, isAuthed: !!user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{
+      user, workspaceId, isAuthed: !!user, isGuest, isLoading,
+      login, register, loginAsGuest, logout,
+    }}>
       {children}
     </AuthContext.Provider>
   )

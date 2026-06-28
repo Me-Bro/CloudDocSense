@@ -81,7 +81,8 @@ async def query_documents(
     chunks = await retrieval.retrieve(db, req.workspace_id, req.question)
 
     db.add(Message(conversation_id=conv.id, role="user", content=req.question))
-    await _save_search_history(db, current_user.id, req.workspace_id, req.question, chunks)
+    if not current_user.is_guest:
+        await _save_search_history(db, current_user.id, req.workspace_id, req.question, chunks)
 
     if not chunks:
         log.info("query.decision", path="not_found", reason="no_chunks_above_threshold")

@@ -15,6 +15,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
+    guest_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     workspaces: Mapped[list["Workspace"]] = relationship(back_populates="owner")  # noqa: F821
