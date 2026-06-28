@@ -8,6 +8,7 @@ services:
       - PYTHONUNBUFFERED=1
 
   worker:
+    command: watchmedo auto-restart --directory=./worker --pattern="*.py" --recursive -- celery -A worker.celery_app worker --loglevel=info --concurrency=2
     volumes:
       - ./apps/worker:/app
     environment:
