@@ -1,3 +1,5 @@
+import { getToken, signalUnauthorized } from './auth'
+
 const BASE = '/api'
 
 export interface Citation {
@@ -54,11 +56,45 @@ export interface StreamCallbacks {
   onError?: (err: unknown) => void
 }
 
+export interface UserInfo {
+  id: string
+  email: string
+  display_name: string | null
+  created_at: string | null
+}
+
+export interface WorkspaceInfo {
+  id: string
+  name: string
+}
+
+export interface SearchHistoryItem {
+  id: string
+  query: string
+  workspace_id: string
+  result_count: number
+  created_at: string | null
+}
+
+export interface AuthResponse {
+  access_token: string
+  token_type: string
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init?.headers },
     ...init,
   })
+  if (resp.status === 401) {
+    signalUnauthorized()
+    throw new Error('Unauthorized')
+  }
   if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`)
   return resp.json() as Promise<T>
 }
@@ -76,20 +112,43 @@ function parseSseBlock(block: string): { event: string; data: string } {
 }
 
 export const apiClient = {
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  register: (email: string, password: string, display_name?: string) =>
+    request<AuthResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, display_name }),
+    }),
+
+  login: (email: string, password: string) =>
+    request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+
+  getMe: () => request<UserInfo>('/auth/me'),
+
+  // ── Workspaces ────────────────────────────────────────────────────────────
+  listWorkspaces: () =>
+    request<{ workspaces: WorkspaceInfo[] }>('/workspaces/'),
+
+  createWorkspace: (name: string) =>
+    request<WorkspaceInfo>('/workspaces/', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  // ── Query ─────────────────────────────────────────────────────────────────
   query: (body: QueryRequest) =>
     request<QueryResponse>('/query/', { method: 'POST', body: JSON.stringify(body) }),
 
-  /** Stream an answer via the SSE endpoint. Returns an abort function. */
   streamQuery(body: QueryRequest, cb: StreamCallbacks): () => void {
     const controller = new AbortController()
     ;(async () => {
       try {
         const resp = await fetch(`${BASE}/query/stream`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify(body),
           signal: controller.signal,
         })
+        if (resp.status === 401) { signalUnauthorized(); return }
         if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`)
 
         const reader = resp.body.getReader()
@@ -100,7 +159,6 @@ export const apiClient = {
           const { value, done } = await reader.read()
           if (done) break
           buf += decoder.decode(value, { stream: true })
-          // SSE events are separated by a blank line — CRLFCRLF or LFLF.
           let m: RegExpMatchArray | null
           while ((m = buf.match(/\r\n\r\n|\n\n/)) !== null) {
             const idx = m.index!
@@ -124,13 +182,16 @@ export const apiClient = {
     return () => controller.abort()
   },
 
+  // ── Ingest ────────────────────────────────────────────────────────────────
   uploadDocument: async (file: File, workspaceId: string): Promise<UploadResponse> => {
     const form = new FormData()
     form.append('file', file)
     const resp = await fetch(`${BASE}/ingest/?workspace_id=${workspaceId}`, {
       method: 'POST',
+      headers: authHeaders(),
       body: form,
     })
+    if (resp.status === 401) { signalUnauthorized(); throw new Error('Unauthorized') }
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`)
     return resp.json() as Promise<UploadResponse>
   },
@@ -144,7 +205,10 @@ export const apiClient = {
     request<{ deleted: string }>(`/ingest/documents/${docId}`, { method: 'DELETE' }),
 
   downloadDocument: async (docId: string, filename: string): Promise<void> => {
-    const resp = await fetch(`${BASE}/ingest/documents/${docId}/download`)
+    const resp = await fetch(`${BASE}/ingest/documents/${docId}/download`, {
+      headers: authHeaders(),
+    })
+    if (resp.status === 401) { signalUnauthorized(); return }
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const blob = await resp.blob()
     const url = URL.createObjectURL(blob)
@@ -154,4 +218,14 @@ export const apiClient = {
     a.click()
     URL.revokeObjectURL(url)
   },
+
+  // ── Search History ─────────────────────────────────────────────────────────
+  getSearchHistory: (limit = 50) =>
+    request<{ items: SearchHistoryItem[] }>(`/users/me/search-history?limit=${limit}`),
+
+  deleteSearchHistoryEntry: (id: string) =>
+    request<{ deleted: string }>(`/users/me/search-history/${id}`, { method: 'DELETE' }),
+
+  clearSearchHistory: () =>
+    request<{ cleared: boolean }>('/users/me/search-history', { method: 'DELETE' }),
 }

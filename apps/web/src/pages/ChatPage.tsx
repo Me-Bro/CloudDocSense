@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { apiClient, type Citation } from '../lib/apiClient'
 
 interface Message {
@@ -10,6 +11,7 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const { workspaceId } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -39,7 +41,7 @@ export default function ChatPage() {
     setLoading(true)
 
     apiClient.streamQuery(
-      { question, workspace_id: 'default', conversation_id: conversationId },
+      { question, workspace_id: workspaceId ?? 'default', conversation_id: conversationId },
       {
         onMeta: (meta) => {
           setConversationId(meta.conversation_id)

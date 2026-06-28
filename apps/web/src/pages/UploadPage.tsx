@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
+import { useAuth } from '../contexts/AuthContext'
 import { apiClient, type DocumentInfo } from '../lib/apiClient'
-
-const WORKSPACE = 'default'
 
 const STATUS_STYLE: Record<string, string> = {
   indexed: 'text-green-600',
@@ -28,6 +27,8 @@ function formatDate(iso: string | null | undefined) {
 }
 
 export default function UploadPage() {
+  const { workspaceId } = useAuth()
+  const WORKSPACE = workspaceId ?? 'default'
   const [docs, setDocs] = useState<DocumentInfo[]>([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)

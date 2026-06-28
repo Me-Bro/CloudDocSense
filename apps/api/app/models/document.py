@@ -16,7 +16,7 @@ class Document(Base):
     mime_type: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, default="pending")
     source: Mapped[str | None] = mapped_column(String, nullable=True)
-    owner_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    owner_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     workspace: Mapped["Workspace"] = relationship(back_populates="documents")  # noqa: F821
